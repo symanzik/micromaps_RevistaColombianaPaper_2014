@@ -1197,6 +1197,8 @@ Argtable[, 2] <- as.character(Argtable[, 2])
 Argtable[, 3] <- as.numeric(as.character(Argtable[, 3]))
 Argtable[, 4] <- as.numeric(as.character(Argtable[, 4]))
 Argtable[4, 2] <- "Ciudad de Buenos Aires"
+provincematch <- gregexpr("\\<[[:alpha:][:space:]]*", Argtable[, 2])
+Argtable[, 2] <- unlist(regmatches(Argtable[, 2], provincematch))
 colnames(Argtable) <- c("Rank", "provinces", "2010 Population", "2001 Population")
 Argtable[, "change"] <- Argtable[, 3] - Argtable[, 4]
 provinces <- as.character(sort(Argtable[, 2]))

@@ -1030,6 +1030,7 @@ if (useLocalFiles) {
 Bratable2 <- Bratable2[-c(8, 18, 23, 27, 32, 33), ]
 Bratable2[, 2:13] <- sapply(Bratable2[, 2:13], function(x) as.numeric(as.character(x)))
 Bratable2[, 1] <- as.character(Bratable2[, 1])
+Bratable2[, 1] <- substring(Bratable2[, 1], 2)
 Bratable2[, "change"] <- Bratable2[, 12] - Bratable2[, 2]
 Bratable2[, "zero"] <- 0
 Bratable2 <- Bratable2[order(Bratable2[, 1]), ]

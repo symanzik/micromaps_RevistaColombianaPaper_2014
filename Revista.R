@@ -23,6 +23,12 @@
 ###   with all R packages updated to the most recent
 ###   version (such as micromap 1.9.7)
 ###
+### Revised on August 6, 2024, to run under R 4.4.1
+###   with all R packages updated to the most recent
+###   version (such as micromap 1.9.8)
+###   and one-by-one replacement of functions from the
+###   maptools and rgeos R packages
+###
 ### This R code is split into eight main parts:
 ###   Part 1: General Settings and R Packages
 ###   Part 2: Shapefile Modification for Brazil
@@ -62,13 +68,14 @@ outputFormat <- c("ps", "pdf")[2]
 library(micromap)
 library(ggplot2)
 library(grid)
-library(maptools)
+# library(maptools)
 # library(sp)
 # library(RColorBrewer)
 
 library(lattice)
-library(rgeos)
+# library(rgeos)
 library(XML)
+library(dplyr)
 
 # install additional fonts for postscript files on Windows
 #
@@ -119,7 +126,9 @@ AreaPercent <- function(x) {
 # a default argument to the RescaleArea function (but can also be adjusted by a user).
 
 RescaleArea <- function(x, unit, rescale_factor) {
-  b <- gBuffer(x[unit, ], width = rescale_factor, byid = TRUE)
+  # b <- gBuffer(x[unit, ], width = rescale_factor, byid = TRUE)
+  
+  b <- as_Spatial(st_buffer(st_as_sf(x[unit, ]), dist = rescale_factor))
   return(b)
 }
 
@@ -227,7 +236,14 @@ brazil2 <- brazil
 brazil2$ID_1[brazil2$ID_1 %in% c(436, 438)] <- "438"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# replacement based on 
+#   https://gis.stackexchange.com/questions/316181/how-do-i-combine-geometries-in-a-shapefile-based-on-a-grouping-variable
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -246,7 +262,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the map
-fedist <- gIntersection(brazil2[8, ], newarea, byid = TRUE)
+# fedist <- gIntersection(brazil2[8, ], newarea, byid = TRUE)
+
+fedist <- st_intersection(st_as_sf(brazil2[8, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(fedist, col = "khaki", bg = "azure2", add = TRUE)
@@ -258,7 +277,11 @@ row.names(fedistdata) <- "436"
 fedist <- SpatialPolygonsDataFrame(fedist, fedistdata)
 
 # and cut the dissolved area with the new area
-goias <- gDifference(brazil2[8, ], fedist)
+# goias <- gDifference(brazil2[8, ], fedist)
+
+goias <- st_difference(st_as_sf(brazil2[8, ]), st_as_sf(fedist)) %>%
+  as_Spatial()
+
 row.names(goias) <- "438"
 goiasdata <- brazil2[8, ]@data
 row.names(goiasdata) <- "438"
@@ -276,7 +299,12 @@ brazil2 <- brazil3
 brazil2$ID_1[brazil2$ID_1 %in% c(448, 442)] <- "442"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -290,7 +318,12 @@ row.names(brazil2.data) <- row.names(brazil2.sp)
 brazil2 <- SpatialPolygonsDataFrame(brazil2.sp, brazil2.data)
 plot(brazil2)
 
-rio <- thinnedSpatialPoly(brazil[19, ], tolerance = 18000)
+# rio <- thinnedSpatialPoly(brazil[19, ], tolerance = 18000)
+
+rio <- st_as_sf(brazil[19, ]) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil[19, ])
 plot(rio, col = "red", add = TRUE)
 length(slot(rio, "polygons"))
@@ -299,7 +332,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the new area
-rio <- gIntersection(brazil2[13, ], newarea, byid = TRUE)
+# rio <- gIntersection(brazil2[13, ], newarea, byid = TRUE)
+
+rio <- st_intersection(st_as_sf(brazil2[13, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(rio, col = "khaki", bg = "azure2", add = TRUE)
@@ -311,7 +347,11 @@ row.names(riodata) <- "448"
 rio <- SpatialPolygonsDataFrame(rio, riodata)
 
 # and cut the dissolved area with the new area
-minas <- gDifference(brazil2[13, ], rio)
+# minas <- gDifference(brazil2[13, ], rio)
+
+minas <- st_difference(st_as_sf(brazil2[13, ]), st_as_sf(rio)) %>%
+  as_Spatial()
+
 row.names(minas) <- "442"
 minasdata <- brazil2[13, ]@data
 row.names(minasdata) <- "442"
@@ -330,7 +370,12 @@ brazil2 <- brazil3
 brazil2$ID_1[brazil2$ID_1 %in% c(437, 442)] <- "442"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -344,7 +389,12 @@ row.names(brazil2.data) <- row.names(brazil2.sp)
 brazil2 <- SpatialPolygonsDataFrame(brazil2.sp, brazil2.data)
 plot(brazil2)
 
-santo <- thinnedSpatialPoly(brazil[8, ], tolerance = 18000)
+# santo <- thinnedSpatialPoly(brazil[8, ], tolerance = 18000)
+
+santo <- st_as_sf(brazil[8, ]) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil[8, ])
 plot(santo, col = "red", add = TRUE)
 length(slot(santo, "polygons"))
@@ -353,7 +403,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the new area
-santo <- gIntersection(brazil2[12, ], newarea, byid = TRUE)
+# santo <- gIntersection(brazil2[12, ], newarea, byid = TRUE)
+
+santo <- st_intersection(st_as_sf(brazil2[12, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(santo, col = "khaki", bg = "azure2", add = TRUE)
@@ -365,7 +418,11 @@ row.names(santodata) <- "437"
 santo <- SpatialPolygonsDataFrame(santo, santodata)
 
 # and cut the dissolved area with the new area
-minas <- gDifference(brazil2[12, ], santo)
+# minas <- gDifference(brazil2[12, ], santo)
+
+minas <- st_difference(st_as_sf(brazil2[12, ]), st_as_sf(santo)) %>%
+  as_Spatial()
+
 row.names(minas) <- "442"
 minasdata <- brazil2[12, ]@data
 row.names(minasdata) <- "442"
@@ -385,7 +442,12 @@ brazil2@data
 brazil2$ID_1[brazil2$ID_1 %in% c(455, 434)] <- "434"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -399,7 +461,12 @@ row.names(brazil2.data) <- row.names(brazil2.sp)
 brazil2 <- SpatialPolygonsDataFrame(brazil2.sp, brazil2.data)
 plot(brazil2)
 
-sergipe <- thinnedSpatialPoly(brazil[26, ], tolerance = 18000)
+# sergipe <- thinnedSpatialPoly(brazil[26, ], tolerance = 18000)
+
+sergipe <- st_as_sf(brazil[26, ]) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil[26, ])
 plot(sergipe, col = "red", add = TRUE)
 length(slot(sergipe, "polygons"))
@@ -408,7 +475,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the new area
-sergipe <- gIntersection(brazil2[5, ], newarea, byid = TRUE)
+# sergipe <- gIntersection(brazil2[5, ], newarea, byid = TRUE)
+
+sergipe <- st_intersection(st_as_sf(brazil2[5, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(sergipe, col = "khaki", bg = "azure2", add = TRUE)
@@ -420,7 +490,11 @@ row.names(sergipedata) <- "455"
 sergipe <- SpatialPolygonsDataFrame(sergipe, sergipedata)
 
 # and cut the dissolved area with the new area
-bahia <- gDifference(brazil2[5, ], sergipe)
+# bahia <- gDifference(brazil2[5, ], sergipe)
+
+bahia <- st_difference(st_as_sf(brazil2[5, ]), st_as_sf(sergipe)) %>%
+  as_Spatial()
+
 row.names(bahia) <- "434"
 bahiadata <- brazil2[5, ]@data
 row.names(bahiadata) <- "434"
@@ -440,7 +514,12 @@ brazil2@data
 brazil2$ID_1[brazil2$ID_1 %in% c(449, 435)] <- "435"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -454,7 +533,12 @@ row.names(brazil2.data) <- row.names(brazil2.sp)
 brazil2 <- SpatialPolygonsDataFrame(brazil2.sp, brazil2.data)
 plot(brazil2)
 
-rionorte <- thinnedSpatialPoly(brazil[20, ], tolerance = 18000)
+# rionorte <- thinnedSpatialPoly(brazil[20, ], tolerance = 18000)
+
+rionorte <- st_as_sf(brazil[20, ]) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil[20, ])
 plot(rionorte, col = "red", add = TRUE)
 length(slot(rionorte, "polygons"))
@@ -463,7 +547,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the new area
-rionorte <- gIntersection(brazil2[6, ], newarea, byid = TRUE)
+# rionorte <- gIntersection(brazil2[6, ], newarea, byid = TRUE)
+
+rionorte <- st_intersection(st_as_sf(brazil2[6, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(rionorte, col = "khaki", bg = "azure2", add = TRUE)
@@ -475,7 +562,11 @@ row.names(rionortedata) <- "449"
 rionorte <- SpatialPolygonsDataFrame(rionorte, rionortedata)
 
 # and cut the dissolved area with the new area
-ceara <- gDifference(brazil2[6, ], rionorte)
+# ceara <- gDifference(brazil2[6, ], rionorte)
+
+ceara <- st_difference(st_as_sf(brazil2[6, ]), st_as_sf(rionorte)) %>%
+  as_Spatial()
+
 row.names(ceara) <- "435"
 cearadata <- brazil2[6, ]@data
 row.names(cearadata) <- "435"
@@ -495,7 +586,12 @@ brazil2@data
 brazil2$ID_1[brazil2$ID_1 %in% c(431, 455)] <- "455"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -509,7 +605,12 @@ row.names(brazil2.data) <- row.names(brazil2.sp)
 brazil2 <- SpatialPolygonsDataFrame(brazil2.sp, brazil2.data)
 plot(brazil2)
 
-alagoas <- thinnedSpatialPoly(brazil[2, ], tolerance = 18000)
+# alagoas <- thinnedSpatialPoly(brazil[2, ], tolerance = 18000)
+
+alagoas <- st_as_sf(brazil[2, ]) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil[2, ])
 plot(alagoas, col = "red", add = TRUE)
 length(slot(alagoas, "polygons"))
@@ -518,7 +619,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the new area
-alagoas <- gIntersection(brazil2[25, ], newarea, byid = TRUE)
+# alagoas <- gIntersection(brazil2[25, ], newarea, byid = TRUE)
+
+alagoas <- st_intersection(st_as_sf(brazil2[25, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(alagoas, col = "khaki", bg = "azure2", add = TRUE)
@@ -530,7 +634,11 @@ row.names(alagoasdata) <- "431"
 alagoas <- SpatialPolygonsDataFrame(alagoas, alagoasdata)
 
 # and cut the dissolved area with the new area
-sergipe <- gDifference(brazil2[25, ], alagoas)
+# sergipe <- gDifference(brazil2[25, ], alagoas)
+
+sergipe <- st_difference(st_as_sf(brazil2[25, ]), st_as_sf(alagoas)) %>%
+  as_Spatial()
+
 row.names(sergipe) <- "455"
 sergipedata <- brazil2[25, ]@data
 row.names(sergipedata) <- "455"
@@ -550,7 +658,12 @@ brazil2@data
 brazil2$ID_1[brazil2$ID_1 %in% c(444, 446)] <- "446"
 
 ## Merge Polygons
-brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+# brazil2.sp <- unionSpatialPolygons(brazil2, brazil2$ID_1)
+
+brazil2.sp <- st_as_sf(brazil2) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil2.sp, "polygons"), function(x) slot(x, "ID"))
@@ -564,7 +677,12 @@ row.names(brazil2.data) <- row.names(brazil2.sp)
 brazil2 <- SpatialPolygonsDataFrame(brazil2.sp, brazil2.data)
 plot(brazil2)
 
-paraiba <- thinnedSpatialPoly(brazil[15, ], tolerance = 20000)
+# paraiba <- thinnedSpatialPoly(brazil[15, ], tolerance = 20000)
+
+paraiba <- st_as_sf(brazil[15, ]) %>%
+  st_simplify(dTolerance = 20000) %>%
+  as_Spatial()
+
 plot(brazil[15, ])
 plot(paraiba, col = "red", add = TRUE)
 length(slot(paraiba, "polygons"))
@@ -573,7 +691,10 @@ plot(newarea, col = "red", add = TRUE)
 
 # add enlarged area back in
 ## Clip the new area
-paraiba <- gIntersection(brazil2[16, ], newarea, byid = TRUE)
+# paraiba <- gIntersection(brazil2[16, ], newarea, byid = TRUE)
+
+paraiba <- st_intersection(st_as_sf(brazil2[16, ]), st_as_sf(newarea)) %>%
+  as_Spatial()
 
 ## Plot the output
 plot(paraiba, col = "khaki", bg = "azure2", add = TRUE)
@@ -585,7 +706,11 @@ row.names(paraibadata) <- "444"
 paraiba <- SpatialPolygonsDataFrame(paraiba, paraibadata)
 
 # and cut the dissolved area with the new area
-pernambuco <- gDifference(brazil2[16, ], paraiba)
+# pernambuco <- gDifference(brazil2[16, ], paraiba)
+
+pernambuco <- st_difference(st_as_sf(brazil2[16, ]), st_as_sf(paraiba)) %>%
+  as_Spatial()
+
 row.names(pernambuco) <- "446"
 pernambucodata <- brazil2[16, ]@data
 row.names(pernambucodata) <- "446"
@@ -595,7 +720,12 @@ brazil2 <- brazil2[c(-16), ]
 brazil3 <- rbind(brazil2, paraiba, pernambuco)
 plot(brazil3)
 
-brazil4 <- thinnedSpatialPoly(brazil3, tolerance = 18000, minarea = 500)
+# brazil4 <- thinnedSpatialPoly(brazil3, tolerance = 18000, minarea = 500)
+
+brazil4 <- st_as_sf(brazil3) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil4)
 
 # try pushing federal district out into ocean to demonstrate shifting
@@ -608,7 +738,12 @@ fedist <- brazil5[7, ]
 brazil3$ID_1[brazil3$ID_1 %in% c(436, 438)] <- "438"
 
 ## Merge Polygons
-brazil3.sp <- unionSpatialPolygons(brazil3, brazil3$ID_1)
+# brazil3.sp <- unionSpatialPolygons(brazil3, brazil3$ID_1)
+
+brazil3.sp <- st_as_sf(brazil3) %>%
+  group_by(ID_1) %>% 
+  summarize(geometry = st_union(geometry)) %>%
+  as_Spatial()
 
 ## Rownames of the associated data frame must be the same as polygons IDs
 sapply(slot(brazil3.sp, "polygons"), function(x) slot(x, "ID"))
@@ -622,142 +757,267 @@ row.names(brazil3.data) <- row.names(brazil3.sp)
 brazil3 <- SpatialPolygonsDataFrame(brazil3.sp, brazil3.data)
 plot(brazil3)
 brazil3 <- rbind(brazil3, fedist)
-brazil3 <- thinnedSpatialPoly(brazil3, tolerance = 18000, minarea = 500)
+# brazil3 <- thinnedSpatialPoly(brazil3, tolerance = 18000, minarea = 500)
+
+brazil3 <- st_as_sf(brazil3) %>%
+  st_simplify(dTolerance = 18000) %>%
+  as_Spatial()
+
 plot(brazil3)
 
 
 ### Part 3: Shapefile Modification for other Countries from South America
 
-ArgShapefile <- readShapeSpatial("Shapefiles/ARG_adm/ARG_adm1",
-  verbose = TRUE
-)
+# ArgShapefile <- readShapeSpatial("Shapefiles/ARG_adm/ARG_adm1",
+#   verbose = TRUE
+# )
+
+ArgShapefile <- as_Spatial(st_read("Shapefiles/ARG_adm/ARG_adm1.shp"))
+
 plot(ArgShapefile)
-ArgShapefileThin <- thinnedSpatialPoly(ArgShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# ArgShapefileThin <- thinnedSpatialPoly(ArgShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+ArgShapefileThin <- st_as_sf(ArgShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(ArgShapefileThin)
 
-BolShapefile <- readShapeSpatial("Shapefiles/BOL_adm/BOL_adm1",
-  verbose = TRUE
-)
+# BolShapefile <- readShapeSpatial("Shapefiles/BOL_adm/BOL_adm1",
+#   verbose = TRUE
+# )
+
+BolShapefile <- as_Spatial(st_read("Shapefiles/BOL_adm/BOL_adm1.shp"))
+
 plot(BolShapefile)
-BolShapefileThin <- thinnedSpatialPoly(BolShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# BolShapefileThin <- thinnedSpatialPoly(BolShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+BolShapefileThin <- st_as_sf(BolShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(BolShapefileThin)
 
-BraShapefile <- readShapeSpatial("Shapefiles/BRA_adm/BRA_adm1",
-  verbose = TRUE
-)
+# BraShapefile <- readShapeSpatial("Shapefiles/BRA_adm/BRA_adm1",
+#   verbose = TRUE
+# )
+
+BraShapefile <- as_Spatial(st_read("Shapefiles/BRA_adm/BRA_adm1.shp"))
+
 plot(BraShapefile)
-BraShapefileThin <- thinnedSpatialPoly(BraShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# BraShapefileThin <- thinnedSpatialPoly(BraShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+BraShapefileThin <- st_as_sf(BraShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(BraShapefileThin)
 
-ChiShapefile <- readShapeSpatial("Shapefiles/CHL_adm/CHL_adm1",
-  verbose = TRUE
-)
+# ChiShapefile <- readShapeSpatial("Shapefiles/CHL_adm/CHL_adm1",
+#   verbose = TRUE
+# )
+
+ChiShapefile <- as_Spatial(st_read("Shapefiles/CHL_adm/CHL_adm1.shp"))
+
 plot(ChiShapefile)
-ChiShapefileThin <- thinnedSpatialPoly(ChiShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# ChiShapefileThin <- thinnedSpatialPoly(ChiShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+ChiShapefileThin <- st_as_sf(ChiShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(ChiShapefileThin, xlim = c(-90, -50))
 
-ColShapefile <- readShapeSpatial("Shapefiles/COL_adm/COL_adm1",
-  verbose = TRUE
-)
+# ColShapefile <- readShapeSpatial("Shapefiles/COL_adm/COL_adm1",
+#   verbose = TRUE
+# )
+
+ColShapefile <- as_Spatial(st_read("Shapefiles/COL_adm/COL_adm1.shp"))
+
 plot(ColShapefile)
-ColShapefileThin <- thinnedSpatialPoly(ColShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# ColShapefileThin <- thinnedSpatialPoly(ColShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+ColShapefileThin <- st_as_sf(ColShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(ColShapefileThin)
 
-EcuShapefile <- readShapeSpatial("Shapefiles/ECU_adm/ECU_adm1",
-  verbose = TRUE
-)
+# EcuShapefile <- readShapeSpatial("Shapefiles/ECU_adm/ECU_adm1",
+#   verbose = TRUE
+# )
+
+EcuShapefile <- as_Spatial(st_read("Shapefiles/ECU_adm/ECU_adm1.shp"))
+
 plot(EcuShapefile)
-EcuShapefileThin <- thinnedSpatialPoly(EcuShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# EcuShapefileThin <- thinnedSpatialPoly(EcuShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+EcuShapefileThin <- st_as_sf(EcuShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(EcuShapefileThin)
 
-GuyShapefile <- readShapeSpatial("Shapefiles/GUY_adm/GUY_adm1",
-  verbose = TRUE
-)
+# GuyShapefile <- readShapeSpatial("Shapefiles/GUY_adm/GUY_adm1",
+#   verbose = TRUE
+# )
+
+GuyShapefile <- as_Spatial(st_read("Shapefiles/GUY_adm/GUY_adm1.shp"))
+
 plot(GuyShapefile)
-GuyShapefileThin <- thinnedSpatialPoly(GuyShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# GuyShapefileThin <- thinnedSpatialPoly(GuyShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+GuyShapefileThin <- st_as_sf(GuyShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(GuyShapefileThin)
 
-PerShapefile <- readShapeSpatial("Shapefiles/PER_adm/PER_adm1",
-  verbose = TRUE
-)
+# PerShapefile <- readShapeSpatial("Shapefiles/PER_adm/PER_adm1",
+#   verbose = TRUE
+# )
+
+PerShapefile <- as_Spatial(st_read("Shapefiles/PER_adm/PER_adm1.shp"))
+
 plot(PerShapefile)
-PerShapefileThin <- thinnedSpatialPoly(PerShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# PerShapefileThin <- thinnedSpatialPoly(PerShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+PerShapefileThin <- st_as_sf(PerShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(PerShapefileThin)
 
-PryShapefile <- readShapeSpatial("Shapefiles/PRY_adm/PRY_adm1",
-  verbose = TRUE
-)
+# PryShapefile <- readShapeSpatial("Shapefiles/PRY_adm/PRY_adm1",
+#   verbose = TRUE
+# )
+
+PryShapefile <- as_Spatial(st_read("Shapefiles/PRY_adm/PRY_adm1.shp"))
+
 plot(PryShapefile)
-PryShapefileThin <- thinnedSpatialPoly(PryShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# PryShapefileThin <- thinnedSpatialPoly(PryShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+PryShapefileThin <- st_as_sf(PryShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(PryShapefileThin)
 
-SurShapefile <- readShapeSpatial("Shapefiles/SUR_adm/SUR_adm1",
-  verbose = TRUE
-)
+# SurShapefile <- readShapeSpatial("Shapefiles/SUR_adm/SUR_adm1",
+#   verbose = TRUE
+# )
+
+SurShapefile <- as_Spatial(st_read("Shapefiles/SUR_adm/SUR_adm1.shp"))
+
 plot(SurShapefile)
-SurShapefileThin <- thinnedSpatialPoly(SurShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# SurShapefileThin <- thinnedSpatialPoly(SurShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+SurShapefileThin <- st_as_sf(SurShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(SurShapefileThin)
 
-UryShapefile <- readShapeSpatial("Shapefiles/URY_adm/URY_adm1",
-  verbose = TRUE
-)
+# UryShapefile <- readShapeSpatial("Shapefiles/URY_adm/URY_adm1",
+#   verbose = TRUE
+# )
+
+UryShapefile <- as_Spatial(st_read("Shapefiles/URY_adm/URY_adm1.shp"))
+
 plot(UryShapefile)
-UryShapefileThin <- thinnedSpatialPoly(UryShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# UryShapefileThin <- thinnedSpatialPoly(UryShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+UryShapefileThin <- st_as_sf(UryShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(UryShapefileThin)
 
-VenShapefile <- readShapeSpatial("Shapefiles/VEN_adm/VEN_adm1",
-  verbose = TRUE
-)
+# VenShapefile <- readShapeSpatial("Shapefiles/VEN_adm/VEN_adm1",
+#   verbose = TRUE
+# )
+
+VenShapefile <- as_Spatial(st_read("Shapefiles/VEN_adm/VEN_adm1.shp"))
+
 plot(VenShapefile)
-VenShapefileThin <- thinnedSpatialPoly(VenShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# VenShapefileThin <- thinnedSpatialPoly(VenShapefile,
+#   tolerance = 0.05,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+VenShapefileThin <- st_as_sf(VenShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
+
 plot(VenShapefileThin)
 
 
 ### Part 4: Figure 2 with all 12 Countries from South America
 
 if (outputFormat == "ps") {
-  postscript("Output/SA_Countries_05_10_2023.ps",
+  postscript("Output/SA_Countries_08_06_2024.ps",
     paper = "special",
     height = 12, width = 7.5, horizontal = FALSE
   )
 } else {
-  pdf("Output/SA_Countries_05_10_2023.pdf",
+  pdf("Output/SA_Countries_08_06_2024.pdf",
     paper = "special",
     height = 12, width = 7.5
   )
@@ -795,21 +1055,29 @@ dev.off()
 
 ### Part 5: Figure 1 of Different Boundaries for Brazil
 
-BraShapefile <- readShapeSpatial("Shapefiles/BRA_adm/BRA_adm1",
-  verbose = TRUE
-)
-BraShapefileThin <- thinnedSpatialPoly(BraShapefile,
-  tolerance = 0.05,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+# BraShapefile <- readShapeSpatial("Shapefiles/BRA_adm/BRA_adm1",
+#   verbose = TRUE
+# )
+
+BraShapefile <- as_Spatial(st_read("Shapefiles/BRA_adm/BRA_adm1.shp"))
+
+# BraShapefileThin <- thinnedSpatialPoly(BraShapefile,
+#                                        tolerance = 0.05,
+#                                        topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+BraShapefileThin <- st_as_sf(BraShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
 
 if (outputFormat == "ps") {
-  postscript("Output/Brazil_Boundaries_05_10_2023.ps",
+  postscript("Output/Brazil_Boundaries_08_06_2024.ps",
     paper = "special",
     height = 7.5, width = 7.5, horizontal = FALSE
   )
 } else {
-  pdf("Output/Brazil_Boundaries_05_10_2023.pdf",
+  pdf("Output/Brazil_Boundaries_08_06_2024.pdf",
     paper = "special",
     height = 7.5, width = 7.5
   )
@@ -942,7 +1210,7 @@ mmplot(
       xaxis.title = "Per thousand (per mille)"
     )
   ),
-  print.file = paste0("Output/BRA_1_1_05_10_2023_not_used.", outputFormat),
+  print.file = paste0("Output/BRA_1_1_08_06_2024_not_used.", outputFormat),
   print.res = 300
 )
 
@@ -1013,7 +1281,7 @@ mmplot(
       xaxis.title = "Per thousand (per mille)"
     )
   ),
-  print.file = paste0("Output/BRA_1_2_05_10_2023.", outputFormat),
+  print.file = paste0("Output/BRA_1_2_08_06_2024.", outputFormat),
   print.res = 300
 )
 
@@ -1161,7 +1429,7 @@ mmplot(
       panel.width = 1.8
     )
   ),
-  print.file = paste0("Output/BRA_2_05_10_2023.", outputFormat),
+  print.file = paste0("Output/BRA_2_08_06_2024.", outputFormat),
   print.res = 300
 )
 
@@ -1169,15 +1437,24 @@ mmplot(
 ### Part 7: Linked Micromap Plots for Argentina (Figure 3)
 
 # read in shape file
-ArgShapefile <- readShapeSpatial("Shapefiles/ARG_adm/ARG_adm1",
-  verbose = TRUE
-)
+# ArgShapefile <- readShapeSpatial("Shapefiles/ARG_adm/ARG_adm1",
+#   verbose = TRUE
+# )
+
+ArgShapefile <- as_Spatial(st_read("Shapefiles/ARG_adm/ARG_adm1.shp"))
+
 names(ArgShapefile)
 ArgShapefile$NAME_1
-ArgShapefileThin <- thinnedSpatialPoly(ArgShapefile,
-  tolerance = 0.1,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# ArgShapefileThin <- thinnedSpatialPoly(ArgShapefile,
+#   tolerance = 0.1,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+ArgShapefileThin <- st_as_sf(ArgShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
 
 # manipulate population dataset
 if (useLocalFiles) {
@@ -1317,7 +1594,7 @@ mmplot(
       panel.width = 1.6
     )
   ),
-  print.file = paste0("Output/ARG_1_1_05_10_2023_not_used.", outputFormat),
+  print.file = paste0("Output/ARG_1_1_08_06_2024_not_used.", outputFormat),
   print.res = 300
 )
 
@@ -1381,7 +1658,7 @@ mmplot(
       panel.width = 1.8
     )
   ),
-  print.file = paste0("Output/ARG_1_2_05_10_2023.", outputFormat),
+  print.file = paste0("Output/ARG_1_2_08_06_2024.", outputFormat),
   print.res = 300
 )
 
@@ -1389,15 +1666,24 @@ mmplot(
 ### Part 8: Linked Micromap Plots for Uruguay (Figure 4)
 
 # read in shape file
-UruShapefile <- readShapeSpatial("Shapefiles/URY_adm/URY_adm1",
-  verbose = TRUE
-)
+# UruShapefile <- readShapeSpatial("Shapefiles/URY_adm/URY_adm1",
+#   verbose = TRUE
+# )
+
+UruShapefile <- as_Spatial(st_read("Shapefiles/URY_adm/URY_adm1.shp"))
+
 names(UruShapefile)
 UruShapefile$NAME_1
-UruShapefileThin <- thinnedSpatialPoly(UruShapefile,
-  tolerance = 0.01,
-  topologyPreserve = TRUE, avoidGEOS = FALSE
-)
+
+# UruShapefileThin <- thinnedSpatialPoly(UruShapefile,
+#   tolerance = 0.01,
+#   topologyPreserve = TRUE, avoidGEOS = FALSE
+# )
+
+UruShapefileThin <- st_as_sf(UruShapefile) %>%
+  st_simplify(dTolerance = 1000,
+              preserveTopology = TRUE) %>%
+  as_Spatial()
 
 # manipulate population dataset
 
@@ -1490,6 +1776,6 @@ mmplot(
       panel.width = 1.4
     )
   ),
-  print.file = paste0("Output/URU_1_05_10_2023.", outputFormat),
+  print.file = paste0("Output/URU_1_08_06_2024.", outputFormat),
   print.res = 300
 )
